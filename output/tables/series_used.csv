@@ -1,0 +1,6 @@
+series,n_matches,column_index,source_column,unit,all_matches
+wheat,1,38,"Wheat, US HRW",($/mt),"Wheat, US HRW"
+dap,1,59,DAP,($/mt),DAP
+urea,1,61,Urea,($/mt),Urea
+oil,1,2,"Crude oil, average",($/bbl),"Crude oil, average"
+gas,1,9,"Natural gas, Europe",($/mmbtu),"Natural gas, Europe"

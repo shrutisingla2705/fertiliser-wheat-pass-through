@@ -1,0 +1,16 @@
+check,value
+duplicate months,0
+missing months in sequence,0
+trailing months dropped (required series missing),0
+non-positive price values,0
+"one-month moves larger than 25% (log change), flagged not removed",28
+NA count: wheat,0
+NA count: dap,0
+NA count: urea,0
+NA count: oil,0
+NA count: gas,0
+first month retained (burn-in for lags),2013-12-01
+first month of analysis sample,2015-01-01
+last month,2026-10-01
+months in analysis sample,142
+synthetic test file,FALSE

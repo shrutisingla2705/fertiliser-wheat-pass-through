@@ -1,0 +1,224 @@
+---
+title: "Did fertiliser price changes go with later wheat price changes?"
+subtitle: "World Bank monthly commodity prices, from 2015 to the latest month available"
+author: "Shruti Singla"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    self_contained: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+options(knitr.graphics.rel_path = FALSE)   # keep absolute image paths as they are
+source("R/00_setup.R")   # the report is rendered from the project root (see run_all.R)
+
+res    <- readRDS(file.path(PROC_DIR, "results.rds"))
+meta   <- readRDS(file.path(PROC_DIR, "meta.rds"))
+val    <- read_csv(file.path(TAB_DIR, "data_validation.csv"), show_col_types = FALSE)
+series <- read_csv(file.path(TAB_DIR, "series_used.csv"), show_col_types = FALSE)
+get_val <- function(k) val$value[val$check == k]
+nice   <- c(dap = "DAP", urea = "Urea", wheat = "Wheat (US HRW)",
+            oil = "Crude oil (average)", gas = "Natural gas (Europe)")
+# absolute paths: pandoc resolves relative image paths from report/, not the project root
+fig <- function(name) normalizePath(file.path(FIG_DIR, name), mustWork = TRUE)
+```
+
+```{r banner, results = "asis"}
+if (isTRUE(res$is_test)) {
+  cat('<div style="background:#C00000;color:white;padding:12px;font-weight:bold;">',
+      'SYNTHETIC TEST DATA. These numbers come from a fake file used only to test the code. ',
+      'They are NOT real results and must never be quoted.</div>\n')
+}
+```
+
+# 1. Question
+
+Fertiliser is a major cost of growing wheat. **Did monthly changes in fertiliser prices (DAP and urea) go together with later monthly changes in wheat prices, and over what delay?** I use the 2021 to 2022 fertiliser price spike as a natural episode to look at, but the models use the whole sample.
+
+This is a descriptive time-series study. It measures **association and predictive order**, not proven cause and effect.
+
+# 2. Data
+
+* **Source:** World Bank, Commodity Markets ("Pink Sheet"), monthly prices in **nominal US dollars**. File status: *`r ifelse(is.na(meta$updated_on), "not stated", meta$updated_on)`*.
+* **Sample:** `r format(as.Date(get_val("first month of analysis sample")), "%B %Y")` to `r format(as.Date(get_val("last month")), "%B %Y")` (`r get_val("months in analysis sample")` months). Thirteen earlier months are used only to build lagged values.
+* **Series used:**
+
+```{r series-table}
+series |>
+  filter(n_matches > 0) |>
+  transmute(Series = ifelse(series %in% names(nice), nice[series], series),
+            `Column in World Bank file` = source_column,
+            Unit = gsub("$", "\\$", unit, fixed = TRUE)) |>
+  knitr::kable()
+```
+
+**Cleaning and checks** (full list in `output/tables/data_validation.csv`): the date column was parsed from the World Bank format (for example `2021M06`); the placeholder for missing values was converted to missing; the monthly sequence was checked for gaps and duplicates; prices were checked to be positive; one-month moves larger than 25% were flagged for inspection (`output/tables/outlier_flags.csv`) but not removed, because they correspond to genuine market swings rather than errors.
+
+```{r validation-table}
+val |>
+  filter(!grepl("^NA count", check)) |>
+  rename(Check = check, Result = value) |>
+  knitr::kable()
+```
+
+# 3. Method
+
+1. **Monthly log changes.** Price levels trend and wander, so regressing one level on another can look significant by accident. I work with monthly log changes (roughly monthly percentage changes). Augmented Dickey-Fuller (ADF) tests below: a small p-value supports stationarity (the p-values from this test are bounded between 0.01 and 0.99).
+
+```{r adf-table}
+res$stationarity |>
+  transmute(Series = nice[series], Transformation = transform, n,
+            `ADF statistic` = adf_statistic, `p-value` = p_value) |>
+  knitr::kable(digits = 3)
+```
+
+```{r adf-note, results = "asis"}
+weak <- res$stationarity |> filter(transform == "monthly log change", p_value > 0.05)
+for (i in seq_len(nrow(weak))) {
+  cat(sprintf("\n*Note: for %s the test does not reject a unit root at the 5%% level (p = %.3f), so stationarity of its monthly changes is borderline.*\n",
+              nice[weak$series[i]], weak$p_value[i]))
+}
+```
+
+2. **Lead-lag correlations** between wheat now and fertiliser *k* months earlier.
+3. **Distributed-lag regression (main model, window fixed in advance: months 0 to `r max(MAIN_LAGS)`).** Wheat change on fertiliser change today and in the previous `r max(MAIN_LAGS)` months, plus lagged changes in `r if (length(res$controls)) paste(c(oil = "crude oil", gas = "European natural gas")[res$controls], collapse = " and ") else "no energy series (not found in the file)"` as controls. Standard errors are **Newey-West (HAC)** because monthly price changes are usually autocorrelated. The **cumulative association** is the sum of the lag coefficients.
+4. **Granger-type tests in both directions**, because high wheat prices could also pull fertiliser prices up.
+5. **Robustness and sensitivity:** other lag lengths, with and without energy controls, two targeted sensitivity checks, and three sub-periods. A 12-month window is shown separately as **exploratory**, because it was added after the main results were seen.
+
+# 4. Findings
+
+## 4.1 Prices over time
+
+```{r fig1, out.width = "100%"}
+knitr::include_graphics(fig("fig1_indexed_prices.png"))
+```
+
+## 4.2 Main estimates
+
+Both variables are in logs, so a coefficient reads as a percentage response. The **cumulative association** is the total across the window: it says by how many percent wheat prices are higher (or lower) by the end of the window, in association with a one-off 1% rise in the fertiliser price.
+
+```{r main-text, results = "asis"}
+for (x in c("dap", "urea")) {
+  r <- filter(res$main_cum, fertiliser == x)
+  if (nrow(r) == 0) next
+  excl0 <- r$ci_low > 0 || r$ci_high < 0
+  cat(sprintf(
+    "* **%s:** cumulative association over months %s = **%.2f** (95%% CI %.2f to %.2f; n = %d). In words: a one-off 1%% rise in the price goes with wheat prices about %.1f%% %s by the end of the window. The interval %s zero, so the estimate %s distinguishable from zero at the 5%% level. Adjusted R-squared of the model: %.2f.\n",
+    nice[x], r$lags, r$cumulative, r$ci_low, r$ci_high, r$n,
+    abs(r$cumulative), if (r$cumulative >= 0) "higher" else "lower",
+    if (excl0) "excludes" else "includes",
+    if (excl0) "is" else "is not", r$adj_r2))
+}
+```
+
+Low R-squared values mean that most month-to-month movement in wheat prices is **not** explained by fertiliser and energy price changes.
+
+```{r fig3, out.width = "100%"}
+knitr::include_graphics(fig("fig3_lag_coefficients.png"))
+```
+
+## 4.3 Timing: which delays matter?
+
+```{r fig4, out.width = "100%"}
+knitr::include_graphics(fig("fig4_lead_lag_correlations.png"))
+```
+
+**Exploratory, added after seeing the main results:** the same model with a 12-month window, to check what happens beyond month `r max(MAIN_LAGS)`.
+
+```{r fig5, out.width = "100%"}
+knitr::include_graphics(fig("fig5_exploratory_12_months.png"))
+```
+
+## 4.4 Does the direction matter? (Granger-type tests)
+
+Small p-values mean past values of the first series help predict the second. They show predictive order, not causation. Twenty-four tests are run here, so with a 5% threshold one or two would be expected to look significant by chance alone (a strict Bonferroni cut-off would be about 0.002).
+
+```{r granger-table}
+res$granger |>
+  transmute(Direction = gsub("dap", "DAP", gsub("urea", "Urea", direction)),
+            `Lags in test` = order, F = F_stat, `p-value` = p_value) |>
+  knitr::kable(digits = 3)
+```
+
+## 4.5 Robustness and sensitivity
+
+**Sensitivity checks on the main specification.** The first checks whether the most recent months drive the result; the second removes the month in which the World Bank changed the urea benchmark.
+
+```{r sens-table}
+res$sens |>
+  transmute(Fertiliser = nice[fertiliser], Check = check, n,
+            Cumulative = cumulative, `CI low` = ci_low, `CI high` = ci_high, `p-value` = p_value) |>
+  knitr::kable(digits = 3)
+```
+
+**Other lag lengths and control choices.**
+
+```{r robust-table}
+res$robust |>
+  transmute(Fertiliser = nice[fertiliser], Specification = spec, n,
+            Cumulative = cumulative, `CI low` = ci_low, `CI high` = ci_high, `p-value` = p_value) |>
+  knitr::kable(digits = 3)
+```
+
+## 4.6 Did the relationship change over time?
+
+The rolling chart correlates this month's wheat change with the **average fertiliser change over the previous three months**. That window is an analyst choice, made to match the question of delayed transmission.
+
+```{r fig2, out.width = "100%"}
+if (file.exists(file.path(FIG_DIR, "fig2_rolling_correlation.png"))) {
+  knitr::include_graphics(fig("fig2_rolling_correlation.png"))
+}
+```
+
+Sub-period estimates (months 0 to 3, no controls). **Treat with caution:** the shock window has few observations, so intervals are wide.
+
+```{r sub-table}
+res$sub |>
+  transmute(Fertiliser = nice[fertiliser], Period = period_name, Sample = sample, n,
+            Cumulative = cumulative, `CI low` = ci_low, `CI high` = ci_high) |>
+  knitr::kable(digits = 2)
+```
+
+# 5. Limitations
+
+* **Nominal prices.** No inflation or exchange-rate adjustment. A general commodity boom or a dollar move can lift all prices together.
+* **Benchmark export prices, not farm prices.** These are World Bank benchmark quotes, not what farmers pay or receive in any one country. The file's Description sheet defines them as: wheat, US hard red winter (No. 2, Gulf export price; No. 1 ordinary protein up to June 2020); DAP, spot f.o.b. US Gulf; urea (Ukraine, prill), spot f.o.b. Black Sea until February 2022 and f.o.b. Middle East from March 2022.
+* **Series definitions change inside the sample.** The urea quotation point changed in March 2022, in the middle of the shock window; I test this in section 4.5. The wheat benchmark grade changed around mid-2020. The European gas control switches from an import border price to the Dutch TTF price from April 2015, shortly after the sample starts.
+* **Common shocks.** Energy prices affect both fertiliser and wheat; I control for oil and gas. Events such as the 2022 war in Ukraine plausibly hit both markets at once and are **not** separately controlled. The data also show a joint jump in oil, gas and urea in March 2026; section 4.5 shows what happens when the sample ends before 2026. I have not investigated its cause.
+* **Short sub-samples.** The shock-window estimates rest on few months, so they cannot say whether the relationship changed.
+* **Association only.** Regressions with lags and Granger-type tests show timing, not proven cause. Many tests were run, so isolated "significant" results should not be over-read.
+* **The 12-month window is exploratory.** It was added after the main results were seen and should not be treated as a pre-planned test.
+
+# 6. Interpretation
+
+```{r interpretation, results = "asis"}
+interp_file <- "report/interpretation_real_data.md"
+if (isTRUE(res$is_test)) {
+  cat("> This section is written only for the real World Bank data and is hidden in test runs.\n")
+} else if (file.exists(interp_file)) {
+  txt <- readLines(interp_file, warn = FALSE)
+  tag <- regmatches(txt[1], regexec("data_through:\\s*([0-9-]+)", txt[1]))[[1]]
+  if (length(tag) < 2 || tag[2] != get_val("last month")) {
+    cat('<div style="background:#FFF3CD;padding:10px;"><b>The data have changed since this interpretation was written.</b> Re-read it against the tables above and update it before using it.</div>\n\n')
+  }
+  cat(txt[-1], sep = "\n")
+} else {
+  cat("> **TODO (write this yourself after reading the results above):** Two or three sentences: what the cumulative estimates say, whether the lag pattern and the Granger tests agree, whether the sensitivity checks change anything, and the single biggest caveat.\n")
+}
+```
+
+# 7. Reproducibility
+
+```{r repro, results = "asis"}
+src <- file.path(dirname(RAW_FILE), "SOURCE.txt")
+if (file.exists(src)) cat(paste0("* ", readLines(src), "\n"))
+cat("* Raw file used: `", meta$raw_file, "`\n", sep = "")
+cat("* Rerun everything with `source(\"run_all.R\")` from the project root.\n")
+```
+
+```{r session}
+cat(paste(capture.output(sessionInfo()), collapse = "\n"))
+```

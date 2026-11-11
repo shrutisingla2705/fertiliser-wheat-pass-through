@@ -1,0 +1,10 @@
+.Rproj.user/
+.Rhistory
+.RData
+.DS_Store
+# raw World Bank file is public but large and re-downloadable; keep the provenance note
+data/raw/*.xlsx
+data/processed/
+# the test run writes here
+tests/output/
+tests/processed/

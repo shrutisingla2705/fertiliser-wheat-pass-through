@@ -1,0 +1,6 @@
+# keep line endings as LF on every computer, so Git does not convert them
+* text=auto eol=lf
+*.png binary
+*.xlsx binary
+# do not count the rendered report in the repository's language statistics
+docs/report.html linguist-generated=true

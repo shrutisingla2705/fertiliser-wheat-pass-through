@@ -1,0 +1,7 @@
+Source page:   https://www.worldbank.org/en/research/commodity-markets
+File:          CMO-Historical-Data-Monthly.xlsx (sheet "Monthly Prices")
+File status:   "Updated on November 03, 2026" (stated inside the file)
+Obtained:      downloaded from the World Bank website by the project author
+Publisher:     World Bank, Commodity Markets ("Pink Sheet"), monthly nominal US$ prices
+Note:          the Excel file itself is not stored in this repository. Download it from
+               the page above and save it in this folder under the name above.
