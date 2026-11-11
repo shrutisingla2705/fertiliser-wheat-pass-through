@@ -21,7 +21,7 @@ A time-series project in R using World Bank commodity prices from January 2015 t
 
 ![Estimated association by month of delay](output/figures/fig3_lag_coefficients.png)
 
-The full report, with every table and chart, is in `docs/report.html`. Download it and open it in a browser.
+**[View the full report](https://shrutisingla2705.github.io/fertiliser-wheat-pass-through/report.html)**, with every table and chart.
 
 ## Method
 
