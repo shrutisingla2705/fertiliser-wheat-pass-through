@@ -2,6 +2,8 @@
 
 A time-series project in R using World Bank commodity prices from January 2015 to October 2026 (142 months). It asks whether monthly changes in fertiliser prices (DAP and urea) are followed by changes in the wheat price, and after how many months.
 
+**[View the full report](https://shrutisingla2705.github.io/fertiliser-wheat-pass-through/report.html)** · [Author on LinkedIn](https://www.linkedin.com/in/shrutisinglaa)
+
 ![Wheat and fertiliser prices, indexed](output/figures/fig1_indexed_prices.png)
 
 ## Results
@@ -45,7 +47,7 @@ A time-series project in R using World Bank commodity prices from January 2015 t
    install.packages(c("tidyverse", "readxl", "lubridate", "zoo", "sandwich",
                       "lmtest", "tseries", "scales", "rmarkdown", "knitr"))
    ```
-3. Download **Monthly prices (XLS)** from <https://www.worldbank.org/en/research/commodity-markets> and save it as `data/raw/CMO-Historical-Data-Monthly.xlsx`.
+3. The World Bank file used for these results is already in `data/raw/CMO-Historical-Data-Monthly.xlsx`. To use the latest data instead, delete it and `run_all.R` downloads a fresh copy (or download **Monthly prices (XLS)** from <https://www.worldbank.org/en/research/commodity-markets> and save it under that name).
 4. Run `source("run_all.R")`. The charts, tables and `docs/report.html` are rebuilt.
 
 ## Files
@@ -55,10 +57,10 @@ R/                       the four scripts: setup, cleaning, analysis, figures
 report/report.Rmd        the report template
 report/interpretation_real_data.md   written interpretation of the results
 run_all.R                runs everything in order
-docs/report.html          the full report (open it in a browser)
+docs/report.html         the full report (also published with GitHub Pages)
 output/figures/          the five charts
 output/tables/           all result tables (csv)
-data/raw/SOURCE.txt      where the data came from
+data/raw/                the World Bank price file and SOURCE.txt (where it came from)
 tests/                   a check of the code on a small fake data set
 ```
 
@@ -68,6 +70,14 @@ tests/                   a check of the code on a small fake data set
 
 ## Data
 
-World Bank, Commodity Markets ("Pink Sheet"), monthly prices in nominal US dollars, file updated 3 November 2026. Check the World Bank's terms of use before redistributing the raw file, which is why it is not stored here.
+Source: World Bank, Commodity Markets ("Pink Sheet"), *Commodity Price Data*, monthly prices in nominal US dollars, file updated 3 November 2026. <https://www.worldbank.org/en/research/commodity-markets>
 
-Author: Shruti Singla
+The World Bank publishes this data under the [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) licence ([data catalog entry](https://datacatalog.worldbank.org/search/dataset/0038238/commodity-prices-history-and-projections)). A copy of the file is included in `data/raw/` unchanged, so the results can be reproduced exactly. All analysis and interpretation are the author's own and are not endorsed by the World Bank.
+
+## Licence
+
+The code in this repository is released under the [MIT License](LICENSE). The World Bank data in `data/raw/` stays under CC BY 4.0, as described above.
+
+## Author
+
+**Shruti Singla** · [LinkedIn](https://www.linkedin.com/in/shrutisinglaa) · [GitHub](https://github.com/shrutisingla2705)

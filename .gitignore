@@ -2,8 +2,10 @@
 .Rhistory
 .RData
 .DS_Store
-# raw World Bank file is public but large and re-downloadable; keep the provenance note
+# the World Bank file used for the published results is committed on purpose (CC BY 4.0, see README);
+# any other Excel files dropped into data/raw/ stay out of the repository
 data/raw/*.xlsx
+!data/raw/CMO-Historical-Data-Monthly.xlsx
 data/processed/
 # the test run writes here
 tests/output/
